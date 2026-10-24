@@ -1,0 +1,408 @@
+@import "tailwindcss";
+
+:root {
+  font-family: Arial, Helvetica, sans-serif;
+  color: #102c43;
+  background: #edf5f1;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+/* Main two-column layout */
+
+.login-page {
+  display: grid;
+  grid-template-columns: 1.04fr 1fr;
+  width: 100%;
+  min-height: 100vh;
+  background: #edf5f1;
+}
+
+/* Village artwork */
+
+.village-panel {
+  position: relative;
+  min-width: 0;
+  min-height: 100vh;
+  overflow: hidden;
+  background: #dcefe8;
+}
+
+.village-image {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: left center;
+}
+
+/* Login area */
+
+.login-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 100vh;
+  padding: 34px;
+  background: linear-gradient(135deg, #f0f7f4, #e7f1ec);
+}
+
+.login-card {
+  width: 100%;
+  max-width: 560px;
+  padding: 32px 30px 28px;
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: 0 12px 36px rgba(17, 54, 39, 0.11);
+}
+
+/* Heading */
+
+.login-heading {
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.login-heading h1 {
+  margin: 0;
+  color: #0b2945;
+  font-size: clamp(25px, 2.2vw, 34px);
+  font-weight: 800;
+  letter-spacing: -0.9px;
+  line-height: 1.25;
+}
+
+.login-heading h1 span {
+  color: #269449;
+}
+
+.login-heading p {
+  margin: 10px 0 0;
+  color: #56677b;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+/* Role selection */
+
+.role-tabs {
+  display: grid;
+  grid-template-columns: 0.8fr 1.5fr 1.15fr 0.65fr;
+  margin-bottom: 22px;
+  border-bottom: 1px solid #e5eaee;
+}
+
+.role-tab {
+  position: relative;
+  min-width: 0;
+  padding: 13px 3px;
+  border: 0;
+  background: transparent;
+  color: #455468;
+  font-size: clamp(10px, 0.9vw, 13px);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.role-tab.active {
+  color: #087451;
+}
+
+.role-tab.active::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: #087451;
+  content: "";
+}
+
+/* Form fields */
+
+.input-group {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  width: 100%;
+  height: 53px;
+  margin-bottom: 13px;
+  padding: 0 14px;
+  border: 1px solid #d5dde5;
+  border-radius: 8px;
+  background: #fff;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+
+.input-group:focus-within {
+  border-color: #087451;
+  box-shadow: 0 0 0 3px rgba(8, 116, 81, 0.09);
+}
+
+.input-icon {
+  flex-shrink: 0;
+  color: #536579;
+  font-size: 22px;
+}
+
+.input-group input {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #1d344a;
+  font-size: 14px;
+}
+
+.input-group input::placeholder {
+  color: #7b899b;
+}
+
+.password-toggle {
+  flex-shrink: 0;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: #536579;
+  font-size: 19px;
+}
+
+/* Remember me and forgot password */
+
+.login-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 17px 0 22px;
+}
+
+.remember-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #465569;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.remember-option input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: #087451;
+}
+
+.text-button {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #087451;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.text-button:hover {
+  color: #064c37;
+  text-decoration: underline;
+}
+
+/* Login button */
+
+.login-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  width: 100%;
+  min-height: 51px;
+  border: none;
+  border-radius: 7px;
+  background: #087451;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  transition: background 0.2s;
+}
+
+.login-button:hover {
+  background: #065d41;
+}
+
+.login-button span {
+  font-size: 21px;
+}
+
+/* OR separator */
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin: 19px 0;
+}
+
+.divider span {
+  flex: 1;
+  height: 1px;
+  background: #e4e9ed;
+}
+
+.divider p {
+  margin: 0;
+  color: #465569;
+  font-size: 12px;
+}
+
+/* Google login */
+
+.google-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 47px;
+  border: 1px solid #aebdca;
+  border-radius: 7px;
+  background: #fff;
+  color: #142d45;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+
+.google-button:hover {
+  background: #f7faf9;
+}
+
+.google-icon {
+  color: #4285f4;
+  font-size: 25px;
+  font-weight: 800;
+}
+
+/* Registration prompt */
+
+.register-prompt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 22px 0 0;
+  color: #465569;
+  font-size: 13px;
+}
+
+.register-button {
+  font-size: 13px;
+}
+
+/* Status message */
+
+.status-message {
+  margin: 14px 0;
+  padding: 10px 12px;
+  border-radius: 7px;
+  background: #eaf7ef;
+  color: #075b3d;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* Tablet layout */
+
+@media (max-width: 900px) {
+  .login-page {
+    grid-template-columns: 0.85fr 1.15fr;
+  }
+
+  .login-panel {
+    padding: 22px;
+  }
+
+  .login-card {
+    padding: 28px 20px;
+  }
+
+  .role-tab {
+    font-size: 10px;
+  }
+}
+
+/* Mobile layout */
+
+@media (max-width: 650px) {
+  .login-page {
+    grid-template-columns: 1fr;
+  }
+
+  .village-panel {
+    min-height: 260px;
+  }
+
+  .village-image {
+    object-position: center 35%;
+  }
+
+  .login-panel {
+    min-height: auto;
+    padding: 24px 15px;
+  }
+
+  .login-card {
+    max-width: 440px;
+    padding: 26px 18px;
+  }
+
+  .login-heading h1 {
+    font-size: 26px;
+  }
+
+  .role-tab {
+    font-size: 10px;
+  }
+
+  .desktop-break {
+    display: none;
+  }
+}
