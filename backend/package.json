@@ -5,7 +5,10 @@
   "main": "index.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js"
+    "dev": "nodemon src/server.js",
+    "db:migrate": "node src/database/run_migrations.js",
+    "db:seed": "node src/database/run_seeds.js",
+    "db:bootstrap": "node database/bootstrap_admin.js"
   },
   "keywords": [],
   "author": "",
