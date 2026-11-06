@@ -1,4 +1,10 @@
 import { useState } from 'react'
+import { registerCitizen, loginUser } from './services/api'
+import { saveAuth, loadAuth, clearAuth } from './services/auth'
+import CitizenDashboard     from './pages/CitizenDashboard'
+import OfficialDashboard    from './pages/OfficialDashboard'
+import FieldWorkerDashboard from './pages/FieldWorkerDashboard'
+import AdminDashboard       from './pages/AdminDashboard'
 
 const roles = [
   'Citizen',
@@ -8,6 +14,12 @@ const roles = [
 ]
 
 export default function App() {
+  // ── Persisted auth state (restored from localStorage on mount) ───────────
+  const saved = loadAuth()
+  const [currentUser, setCurrentUser] = useState(saved.user)
+  const [authToken,   setAuthToken]   = useState(saved.token)
+
+  // ── Login / register form state ─────────────────────────────────────────
   const [isRegistering, setIsRegistering] = useState(false)
   const [role, setRole] = useState('Citizen')
   const [showPassword, setShowPassword] = useState(false)
@@ -20,31 +32,84 @@ export default function App() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [message, setMessage] = useState('')
+  const [messageType, setMessageType] = useState('') // 'success' | 'error'
+  const [isLoading, setIsLoading] = useState(false)
 
-  function handleLogin(event) {
-    event.preventDefault()
-
-    setMessage(
-      `Login interface is ready for ${role}. Backend authentication will be connected next.`,
-    )
+  // ── Logout ────────────────────────────────────────────────────────────────
+  function handleLogout() {
+    clearAuth()
+    setCurrentUser(null)
+    setAuthToken(null)
+    setEmail('')
+    setPassword('')
+    setMessage('')
   }
 
-  function handleRegister(event) {
+  // ── Login ─────────────────────────────────────────────────────────────────
+  async function handleLogin(event) {
+    event.preventDefault()
+    setIsLoading(true)
+    setMessage('')
+    setMessageType('')
+
+    try {
+      const result = await loginUser(email, password)
+      saveAuth(result.token, result.user)
+      setCurrentUser(result.user)
+      setAuthToken(result.token)
+      // Clear sensitive form fields
+      setPassword('')
+    } catch (err) {
+      setMessage(err.message || 'Login failed. Please check your credentials.')
+      setMessageType('error')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  async function handleRegister(event) {
     event.preventDefault()
 
+    // Client-side pre-checks before hitting the network
     if (password !== confirmPassword) {
       setMessage('Passwords do not match. Please try again.')
+      setMessageType('error')
       return
     }
 
     if (!acceptedTerms) {
-      setMessage('Please accept the Terms and Conditions.')
+      setMessage('Please accept the Terms and Conditions to register.')
+      setMessageType('error')
       return
     }
 
-    setMessage(
-      `Registration interface is ready for ${role}. Account creation will be connected to the backend next.`,
-    )
+    setIsLoading(true)
+    setMessage('')
+    setMessageType('')
+
+    try {
+      const result = await registerCitizen({
+        full_name:        fullName,
+        email:            email || undefined,
+        mobile:           mobile || undefined,
+        password,
+        confirm_password: confirmPassword,
+      })
+
+      setMessage(result.message || 'Registration successful! You can now log in.')
+      setMessageType('success')
+
+      // Clear sensitive fields on success
+      setPassword('')
+      setConfirmPassword('')
+      setAcceptedTerms(false)
+
+    } catch (err) {
+      setMessage(err.message || 'Registration failed. Please try again.')
+      setMessageType('error')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   function switchMode(registering) {
@@ -52,6 +117,15 @@ export default function App() {
     setMessage('')
     setShowPassword(false)
     setShowConfirmPassword(false)
+  }
+
+  // ── Post-login: render role-appropriate dashboard ───────────────────────
+  if (currentUser && authToken) {
+    const props = { user: currentUser, token: authToken, onLogout: handleLogout }
+    if (currentUser.role === 'PANCHAYAT_OFFICIAL') return <OfficialDashboard {...props} />
+    if (currentUser.role === 'FIELD_WORKER')       return <FieldWorkerDashboard {...props} />
+    if (currentUser.role === 'SYSTEM_ADMIN')       return <AdminDashboard {...props} />
+    return <CitizenDashboard {...props} />
   }
 
   return (
@@ -210,13 +284,16 @@ export default function App() {
               </label>
 
               {message && (
-                <p className="status-message" role="status">
+                <p
+                  className={`status-message ${messageType === 'success' ? 'status-success' : messageType === 'error' ? 'status-error' : ''}`}
+                  role="status"
+                >
                   {message}
                 </p>
               )}
 
-              <button type="submit" className="login-button">
-                Create Account <span aria-hidden="true">→</span>
+              <button type="submit" className="login-button" disabled={isLoading}>
+                {isLoading ? 'Creating Account…' : <>Create Account <span aria-hidden="true">→</span></>}
               </button>
             </form>
           ) : (
@@ -281,13 +358,16 @@ export default function App() {
               </div>
 
               {message && (
-                <p className="status-message" role="status">
+                <p
+                  className={`status-message ${messageType === 'success' ? 'status-success' : messageType === 'error' ? 'status-error' : ''}`}
+                  role="status"
+                >
                   {message}
                 </p>
               )}
 
-              <button type="submit" className="login-button">
-                Login <span aria-hidden="true">→</span>
+              <button type="submit" className="login-button" disabled={isLoading}>
+                {isLoading ? 'Logging in…' : <>Login <span aria-hidden="true">→</span></>}
               </button>
 
               <div className="divider">

@@ -2,13 +2,29 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 
-const pool = require("./config/db");
-const app = express();
+const pool            = require("./config/db");
+const authRoutes       = require("./routes/auth.routes");
+const usersRoutes      = require("./routes/users.routes");
+const servicesRoutes   = require("./routes/services.routes");
+const adminRoutes      = require("./routes/admin.routes");
+const applicationsRoutes = require("./routes/applications.routes");
+const grievancesRoutes = require("./routes/grievances.routes");
+
+const app  = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// ── API Routes ────────────────────────────────────────────────────────────────
+app.use("/api/auth",         authRoutes);
+app.use("/api/users",        usersRoutes);
+app.use("/api/services",     servicesRoutes);
+app.use("/api/admin",        adminRoutes);
+app.use("/api/applications", applicationsRoutes);
+app.use("/api/grievances",   grievancesRoutes);
+
 
 // Health-check API
 app.get("/", (req, res) => {
