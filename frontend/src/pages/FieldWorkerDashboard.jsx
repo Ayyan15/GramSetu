@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { getGrievances, getMyProfile, updateGrievanceStatus } from '../services/api'
 import GrievanceAttachments from '../components/GrievanceAttachments'
+import NotificationCenter from '../components/NotificationCenter'
 
 const STATUS_BADGE = {
   ASSIGNED: 'bg-blue-100 text-blue-800',
@@ -79,7 +80,10 @@ export default function FieldWorkerDashboard({ user, onLogout }) {
             <div className="w-9 h-9 rounded-full bg-[#6d4c41] flex items-center justify-center text-white font-bold text-sm">{profile?.full_name?.[0] || 'F'}</div>
             <div><div className="text-sm font-bold text-[#0b2945]">{profile?.full_name || 'Field Worker'}</div><div className="text-xs text-[#56677b]">किनी ग्रामपंचायत · Field Worker</div></div>
           </div>
-          <button onClick={onLogout} className="text-sm text-red-600 hover:text-red-800 font-medium border border-red-200 hover:border-red-400 px-3 py-1.5 rounded-lg transition-colors">Logout</button>
+          <div className="flex items-center gap-3">
+            <NotificationCenter onAuthError={onLogout} onNavigate={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })} />
+            <button onClick={onLogout} className="text-sm text-red-600 hover:text-red-800 font-medium border border-red-200 hover:border-red-400 px-3 py-1.5 rounded-lg transition-colors">Logout</button>
+          </div>
         </div>
       </header>
       <main className="max-w-6xl mx-auto px-4 py-6">

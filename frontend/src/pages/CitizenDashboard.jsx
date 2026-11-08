@@ -4,6 +4,7 @@ import ApplicationForm from '../components/ApplicationForm'
 import DocumentUpload from '../components/DocumentUpload'
 import GrievanceForm from '../components/GrievanceForm'
 import GrievanceDetails from '../components/GrievanceDetails'
+import NotificationCenter from '../components/NotificationCenter'
 
 const CATEGORY_ICONS = {
   certificate: '📄',
@@ -111,6 +112,7 @@ export default function CitizenDashboard({ user, onLogout }) {
             <span className="hidden sm:block text-xs text-[#56677b] bg-green-50 px-2 py-1 rounded-full border border-green-200">
               🏡 Kini Gram Panchayat
             </span>
+            <NotificationCenter onAuthError={onLogout} onNavigate={() => setView('applications')} />
             <button
               onClick={onLogout}
               className="text-sm text-red-600 hover:text-red-800 font-medium border border-red-200 hover:border-red-400 px-3 py-1.5 rounded-lg transition-colors"

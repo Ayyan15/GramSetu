@@ -9,6 +9,11 @@ const {
     removeGrievanceAttachment,
     getGrievanceAttachmentPath,
 } = require('../utils/document-storage');
+const {
+    createNotifications,
+    findRecipients,
+    forRecipients,
+} = require('../services/notification.service');
 
 const MAX_ATTACHMENTS = 5;
 const VALID_ATTACHMENT_MIME_TYPES = new Set([
@@ -137,6 +142,22 @@ async function uploadGrievanceAttachment(req, res) {
                 req.file.size,
             ]
         );
+        const officials = await findRecipients(client, {
+            panchayatId: grievance.panchayat_id,
+            roles: ['PANCHAYAT_OFFICIAL', 'SYSTEM_ADMIN'],
+        });
+        const recipients = [...officials, grievance.assigned_to].filter(Boolean)
+            .filter((recipientId, index, values) => values.indexOf(recipientId) === index);
+        await createNotifications(client, forRecipients(recipients, {
+            panchayatId: grievance.panchayat_id,
+            actorId: req.user.id,
+            notificationType: 'GRIEVANCE_ATTACHMENT_UPLOADED',
+            title: 'New grievance evidence',
+            message: 'New evidence was added to a grievance. नवीन पुरावा तक्रारीला जोडला आहे.',
+            referenceType: 'grievance_attachment',
+            referenceId: result.rows[0].id,
+            metadata: { grievance_id: grievance.id },
+        }));
         await client.query(
             `INSERT INTO audit_logs
                 (user_id, panchayat_id, action, entity_type, entity_id, old_values, new_values)

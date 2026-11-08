@@ -10,6 +10,11 @@
  */
 
 const pool = require('../config/db');
+const {
+    createNotifications,
+    findRecipients,
+    forRecipients,
+} = require('../services/notification.service');
 
 const VALID_CATEGORIES = ['road', 'water', 'electricity', 'sanitation', 'other'];
 const VALID_STATUSES = ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED', 'REJECTED'];
@@ -239,6 +244,20 @@ async function createGrievance(req, res) {
             ]
         );
         const grievance = result.rows[0];
+        const officials = await findRecipients(client, {
+            panchayatId: req.user.panchayat_id,
+            roles: ['PANCHAYAT_OFFICIAL', 'SYSTEM_ADMIN'],
+        });
+        await createNotifications(client, forRecipients(officials, {
+            panchayatId: req.user.panchayat_id,
+            actorId: req.user.id,
+            notificationType: 'GRIEVANCE_SUBMITTED',
+            title: 'New grievance submitted',
+            message: `A new grievance was submitted: ${title}. नवीन तक्रार सादर झाली आहे.`,
+            referenceType: 'grievance',
+            referenceId: grievance.id,
+            metadata: { category },
+        }));
         await insertAudit(client, req.user, grievance.id, 'GRIEVANCE_CREATED', null, {
             status: grievance.status,
             priority: grievance.priority,
@@ -280,7 +299,7 @@ async function assignGrievance(req, res) {
         client = await pool.connect();
         await client.query('BEGIN');
         const grievanceResult = await client.query(
-            `SELECT id, status, assigned_to
+            `SELECT id, status, assigned_to, citizen_id
              FROM grievances
              WHERE id = $1 AND panchayat_id = $2
              FOR UPDATE`,
@@ -324,6 +343,40 @@ async function assignGrievance(req, res) {
             return res.status(409).json({ success: false, message: 'Grievance changed before assignment. Please try again.' });
         }
 
+        const assignmentType = current.assigned_to ? 'GRIEVANCE_REASSIGNED' : 'GRIEVANCE_ASSIGNED';
+        const assignmentMessage = current.assigned_to
+            ? 'Your grievance has been reassigned to a new field worker. तुमची तक्रार नवीन क्षेत्रीय कर्मचाऱ्याला सोपवण्यात आली आहे.'
+            : 'Your grievance has been assigned to a field worker. तुमची तक्रार क्षेत्रीय कर्मचाऱ्याला सोपवण्यात आली आहे.';
+        const assignmentNotifications = [{
+            panchayatId: req.user.panchayat_id,
+            recipientId: current.citizen_id,
+            actorId: req.user.id,
+            notificationType: assignmentType,
+            title: current.assigned_to ? 'Grievance reassigned' : 'Grievance assigned',
+            message: assignmentMessage,
+            referenceType: 'grievance',
+            referenceId: req.params.id,
+            metadata: { assigned_to: assignedTo.trim() },
+        }, {
+            panchayatId: req.user.panchayat_id,
+            recipientId: assignedTo.trim(),
+            actorId: req.user.id,
+            notificationType: assignmentType,
+            title: current.assigned_to ? 'Grievance reassigned to you' : 'Grievance assigned to you',
+            message: 'A grievance has been assigned to you. तुम्हाला एक तक्रार सोपवण्यात आली आहे.',
+            referenceType: 'grievance',
+            referenceId: req.params.id,
+            metadata: { assigned_to: assignedTo.trim() },
+        }];
+        if (current.assigned_to && current.assigned_to !== assignedTo.trim()) {
+            assignmentNotifications.push({
+                ...assignmentNotifications[1],
+                recipientId: current.assigned_to,
+                title: 'Grievance reassigned',
+                message: 'This grievance has been reassigned to another field worker. ही तक्रार दुसऱ्या क्षेत्रीय कर्मचाऱ्याला सोपवण्यात आली आहे.',
+            });
+        }
+        await createNotifications(client, assignmentNotifications);
         const action = current.assigned_to ? 'GRIEVANCE_REASSIGNED' : 'GRIEVANCE_ASSIGNED';
         await insertAudit(client, req.user, req.params.id, action, {
             status: current.status,
@@ -397,7 +450,7 @@ async function updateGrievanceStatus(req, res) {
         client = await pool.connect();
         await client.query('BEGIN');
         const currentResult = await client.query(
-            `SELECT id, status, assigned_to, resolution_note
+            `SELECT id, status, assigned_to, citizen_id, resolution_note
              FROM grievances
              WHERE id = $1 AND panchayat_id = $2
              FOR UPDATE`,
@@ -442,6 +495,32 @@ async function updateGrievanceStatus(req, res) {
             return res.status(409).json({ success: false, message: 'Grievance changed before update. Please try again.' });
         }
 
+        const statusMessage = {
+            IN_PROGRESS: 'Your grievance is now being worked on. तुमच्या तक्रारीवर काम सुरू झाले आहे.',
+            RESOLVED: 'Your grievance has been resolved. तुमची तक्रार सोडवण्यात आली आहे.',
+            CLOSED: 'Your grievance has been closed. तुमची तक्रार बंद करण्यात आली आहे.',
+            REJECTED: 'Your grievance has been rejected. तुमची तक्रार नाकारण्यात आली आहे.',
+        }[status] || `Your grievance status is now ${status.toLowerCase()}.`;
+        const statusNotifications = [{
+            panchayatId: req.user.panchayat_id,
+            recipientId: current.citizen_id,
+            actorId: req.user.id,
+            notificationType: 'GRIEVANCE_STATUS_UPDATED',
+            title: `Grievance ${status.toLowerCase().replace('_', ' ')}`,
+            message: `${statusMessage}${note ? ` ${note}` : ''}`,
+            referenceType: 'grievance',
+            referenceId: req.params.id,
+            metadata: { status },
+        }];
+        if (current.status === 'RESOLVED' && status === 'IN_PROGRESS' && current.assigned_to) {
+            statusNotifications.push({
+                ...statusNotifications[0],
+                recipientId: current.assigned_to,
+                title: 'Grievance reopened',
+                message: 'A resolved grievance has been reopened and needs your attention. सोडवलेली तक्रार पुन्हा उघडण्यात आली आहे.',
+            });
+        }
+        await createNotifications(client, statusNotifications);
         const action = auditActionForStatus(current.status, status);
         await insertAudit(client, req.user, req.params.id, action, {
             status: current.status,

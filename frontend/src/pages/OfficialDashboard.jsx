@@ -4,6 +4,7 @@ import { getToken } from '../services/auth'
 import DocumentReview from '../components/DocumentReview'
 import GrievanceDetails from '../components/GrievanceDetails'
 import GrievanceAssignment from '../components/GrievanceAssignment'
+import NotificationCenter from '../components/NotificationCenter'
 
 const API = 'http://localhost:5000'
 
@@ -150,9 +151,12 @@ export default function OfficialDashboard({ user, onLogout }) {
               <div className="text-xs text-[#56677b]">किनी ग्रामपंचायत · Panchayat Official</div>
             </div>
           </div>
-          <button onClick={onLogout} className="text-sm text-red-600 hover:text-red-800 font-medium border border-red-200 hover:border-red-400 px-3 py-1.5 rounded-lg transition-colors">
-            Logout
-          </button>
+          <div className="flex items-center gap-3">
+            <NotificationCenter onAuthError={onLogout} onNavigate={(notification) => setView(notification.reference_type === 'grievance' ? 'grievances' : 'applications')} />
+            <button onClick={onLogout} className="text-sm text-red-600 hover:text-red-800 font-medium border border-red-200 hover:border-red-400 px-3 py-1.5 rounded-lg transition-colors">
+              Logout
+            </button>
+          </div>
         </div>
       </header>
 

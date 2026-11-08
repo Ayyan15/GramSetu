@@ -9,6 +9,11 @@
 
 const pool = require('../config/db');
 const { validateApplicationData } = require('../utils/application-schema');
+const {
+    createNotifications,
+    findRecipients,
+    forRecipients,
+} = require('../services/notification.service');
 
 /** POST /api/applications */
 async function submitApplication(req, res) {
@@ -93,6 +98,20 @@ async function submitApplication(req, res) {
         );
 
         const application = applicationResult.rows[0];
+        const officials = await findRecipients(client, {
+            panchayatId: req.user.panchayat_id,
+            roles: ['PANCHAYAT_OFFICIAL', 'SYSTEM_ADMIN'],
+        });
+        await createNotifications(client, forRecipients(officials, {
+            panchayatId: req.user.panchayat_id,
+            actorId: req.user.id,
+            notificationType: 'APPLICATION_SUBMITTED',
+            title: 'New application submitted',
+            message: `A new ${serviceResult.rows[0].name} application was submitted. तुमच्या पंचायतीत नवीन अर्ज सादर झाला आहे.`,
+            referenceType: 'application',
+            referenceId: application.id,
+            metadata: { service_name: serviceResult.rows[0].name },
+        }));
         await client.query(
             `INSERT INTO audit_logs
                 (user_id, panchayat_id, action, entity_type, entity_id, new_values)
@@ -193,27 +212,34 @@ async function updateApplicationStatus(req, res) {
         });
     }
 
+    let client;
     try {
-        const currentResult = await pool.query(
-            `SELECT id, status
-             FROM   applications
-             WHERE  id = $1 AND panchayat_id = $2`,
+        client = await pool.connect();
+        await client.query('BEGIN');
+        const currentResult = await client.query(
+            `SELECT a.id, a.status, a.citizen_id, s.name AS service_name
+             FROM applications a
+             JOIN services s ON s.id = a.service_id
+             WHERE a.id = $1 AND a.panchayat_id = $2
+             FOR UPDATE`,
             [id, req.user.panchayat_id]
         );
 
         if (currentResult.rowCount === 0) {
+            await client.query('ROLLBACK');
             return res.status(404).json({ success: false, message: 'Application not found.' });
         }
 
         const currentStatus = currentResult.rows[0].status;
         if (!transitions[currentStatus] || !transitions[currentStatus].includes(status)) {
+            await client.query('ROLLBACK');
             return res.status(400).json({
                 success: false,
                 message: `Application status cannot be changed from ${currentStatus} to ${status}.`,
             });
         }
 
-        const result = await pool.query(
+        const result = await client.query(
             `UPDATE applications
              SET    status      = $1,
                     remarks     = COALESCE($2, remarks),
@@ -225,21 +251,41 @@ async function updateApplicationStatus(req, res) {
             [status, remarks || null, req.user.id, id, req.user.panchayat_id, currentStatus]
         );
         if (result.rowCount === 0) {
+            await client.query('ROLLBACK');
             return res.status(409).json({
                 success: false,
                 message: 'Application status changed by another request. Please try again.',
             });
         }
-        // Audit log (non-blocking)
-        pool.query(
+        const readableStatus = status.toLowerCase().replace('_', ' ');
+        await createNotifications(client, [{
+            panchayatId: req.user.panchayat_id,
+            recipientId: currentResult.rows[0].citizen_id,
+            actorId: req.user.id,
+            notificationType: 'APPLICATION_STATUS_UPDATED',
+            title: `Application ${readableStatus}`,
+            message: `Your ${currentResult.rows[0].service_name} application status is now ${readableStatus}. तुमच्या अर्जाची स्थिती ${readableStatus} आहे.`,
+            referenceType: 'application',
+            referenceId: id,
+            metadata: { status, service_name: currentResult.rows[0].service_name },
+        }]);
+        await client.query(
             `INSERT INTO audit_logs (user_id, panchayat_id, action, entity_type, entity_id, new_values)
              VALUES ($1,$2,'APPLICATION_STATUS_UPDATED','application',$3,$4)`,
             [req.user.id, req.user.panchayat_id, id, JSON.stringify({ status, remarks })]
-        ).catch(e => console.error('[audit]', e.message));
+        );
+        await client.query('COMMIT');
         return res.json({ success: true, message: `Application ${status.toLowerCase()}.`, application: result.rows[0] });
     } catch (err) {
+        if (client) {
+            try { await client.query('ROLLBACK'); } catch (rollbackError) {
+                console.error('[applications:updateStatus] Rollback failed:', rollbackError.message);
+            }
+        }
         console.error('[applications:updateStatus]', err.message);
         return res.status(500).json({ success: false, message: 'Internal server error.' });
+    } finally {
+        if (client) client.release();
     }
 }
 

@@ -78,6 +78,31 @@ export function getServices() {
     return authFetch('/api/services');
 }
 
+/** GET /api/notifications */
+export function getNotifications(options = {}) {
+    const params = new URLSearchParams();
+    Object.entries(options).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') params.set(key, value);
+    });
+    const query = params.toString();
+    return authFetch(`/api/notifications${query ? `?${query}` : ''}`);
+}
+
+/** GET /api/notifications/unread-count */
+export function getUnreadNotificationCount() {
+    return authFetch('/api/notifications/unread-count');
+}
+
+/** PATCH /api/notifications/:id/read */
+export function markNotificationAsRead(id) {
+    return authFetch(`/api/notifications/${id}/read`, { method: 'PATCH' });
+}
+
+/** PATCH /api/notifications/read-all */
+export function markAllNotificationsAsRead() {
+    return authFetch('/api/notifications/read-all', { method: 'PATCH' });
+}
+
 /** GET /api/applications — applications visible to the authenticated user */
 export function getApplications() {
     return authFetch('/api/applications');

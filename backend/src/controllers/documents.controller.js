@@ -10,6 +10,11 @@ const {
     getStoragePath,
     getLegacyStoragePath,
 } = require('../utils/document-storage');
+const {
+    createNotifications,
+    findRecipients,
+    forRecipients,
+} = require('../services/notification.service');
 
 const REVIEW_ROLES = ['PANCHAYAT_OFFICIAL', 'SYSTEM_ADMIN'];
 
@@ -61,18 +66,22 @@ async function uploadDocument(req, res) {
     }
 
     let savedDocument;
+    let client;
     try {
-        const applicationResult = await pool.query(
+        client = await pool.connect();
+        await client.query('BEGIN');
+        const applicationResult = await client.query(
             `SELECT id
              FROM applications
              WHERE id = $1 AND citizen_id = $2 AND panchayat_id = $3`,
             [applicationId, req.user.id, req.user.panchayat_id]
         );
         if (applicationResult.rowCount === 0) {
+            await client.query('ROLLBACK');
             return res.status(404).json({ success: false, message: 'Application not found.' });
         }
 
-        const duplicateResult = await pool.query(
+        const duplicateResult = await client.query(
             `SELECT id
              FROM application_documents
              WHERE application_id = $1
@@ -83,6 +92,7 @@ async function uploadDocument(req, res) {
             [applicationId, normalizedDocumentType]
         );
         if (duplicateResult.rowCount > 0) {
+            await client.query('ROLLBACK');
             return res.status(409).json({
                 success: false,
                 message: 'A document of this type is already active for the application.',
@@ -90,7 +100,7 @@ async function uploadDocument(req, res) {
         }
 
         savedDocument = await saveDocument(req.file.buffer, signature);
-        const result = await pool.query(
+        const result = await client.query(
             `INSERT INTO application_documents
                 (application_id, document_name, file_path, original_filename,
                  stored_filename, document_type, storage_type, panchayat_id,
@@ -111,12 +121,32 @@ async function uploadDocument(req, res) {
                 signature.mimeType,
             ]
         );
+        const officials = await findRecipients(client, {
+            panchayatId: req.user.panchayat_id,
+            roles: ['PANCHAYAT_OFFICIAL', 'SYSTEM_ADMIN'],
+        });
+        await createNotifications(client, forRecipients(officials, {
+            panchayatId: req.user.panchayat_id,
+            actorId: req.user.id,
+            notificationType: 'DOCUMENT_UPLOADED',
+            title: 'New document uploaded',
+            message: `A document was uploaded for application ${applicationId}. नवीन कागदपत्र अर्जासाठी अपलोड झाले आहे.`,
+            referenceType: 'application_document',
+            referenceId: result.rows[0].id,
+            metadata: { application_id: applicationId, document_type: normalizedDocumentType },
+        }));
+        await client.query('COMMIT');
         return res.status(201).json({
             success: true,
             message: 'Document uploaded successfully.',
             document: publicDocument(result.rows[0]),
         });
     } catch (error) {
+        if (client) {
+            try { await client.query('ROLLBACK'); } catch (rollbackError) {
+                console.error('[documents:upload] Rollback failed:', rollbackError.message);
+            }
+        }
         if (savedDocument) {
             try {
                 await removeDocument(savedDocument.storedFilename);
@@ -132,6 +162,8 @@ async function uploadDocument(req, res) {
             });
         }
         return res.status(500).json({ success: false, message: 'Document upload failed. Please try again.' });
+    } finally {
+        if (client) client.release();
     }
 }
 
@@ -232,9 +264,10 @@ async function updateDocumentVerification(req, res) {
         await client.query('BEGIN');
         const currentResult = await client.query(
             `SELECT d.id, d.application_id, d.verification_status,
-                    a.panchayat_id
+                    a.panchayat_id, a.citizen_id, s.name AS service_name
              FROM application_documents d
              JOIN applications a ON a.id = d.application_id
+             JOIN services s ON s.id = a.service_id
              WHERE d.id = $1 AND a.panchayat_id = $2
              FOR UPDATE`,
             [documentId, req.user.panchayat_id]
@@ -303,6 +336,21 @@ async function updateDocumentVerification(req, res) {
                 }),
             ]
         );
+        const readableStatus = status.toLowerCase();
+        await createNotifications(client, [{
+            panchayatId: req.user.panchayat_id,
+            recipientId: currentDocument.citizen_id,
+            actorId: req.user.id,
+            notificationType: 'DOCUMENT_VERIFIED',
+            title: `Document ${readableStatus}`,
+            message: `Your ${currentDocument.service_name} document was ${readableStatus}.${status === 'REJECTED' ? ` Reason: ${rejectionReason.trim()}` : ''} तुमचे कागदपत्र ${readableStatus} झाले आहे.`,
+            referenceType: 'application_document',
+            referenceId: documentId,
+            metadata: {
+                application_id: result.rows[0].application_id,
+                verification_status: status,
+            },
+        }]);
         await client.query('COMMIT');
         return res.json({
             success: true,
