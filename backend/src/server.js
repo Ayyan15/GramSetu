@@ -9,6 +9,7 @@ const servicesRoutes   = require("./routes/services.routes");
 const adminRoutes      = require("./routes/admin.routes");
 const applicationsRoutes = require("./routes/applications.routes");
 const grievancesRoutes = require("./routes/grievances.routes");
+const documentsRoutes = require("./routes/documents.routes");
 
 const app  = express();
 const PORT = process.env.PORT || 5000;
@@ -24,6 +25,7 @@ app.use("/api/services",     servicesRoutes);
 app.use("/api/admin",        adminRoutes);
 app.use("/api/applications", applicationsRoutes);
 app.use("/api/grievances",   grievancesRoutes);
+app.use("/api/documents",    documentsRoutes);
 
 
 // Health-check API

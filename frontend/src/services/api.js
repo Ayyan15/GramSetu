@@ -78,4 +78,149 @@ export function getServices() {
     return authFetch('/api/services');
 }
 
+/** GET /api/applications — applications visible to the authenticated user */
+export function getApplications() {
+    return authFetch('/api/applications');
+}
+
+/** POST /api/applications — submit a citizen service application */
+export function submitApplication(payload) {
+    return authFetch('/api/applications', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    });
+}
+
+/** GET /api/grievances */
+export function getGrievances(filters = {}) {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') params.set(key, value);
+    });
+    const query = params.toString();
+    return authFetch(`/api/grievances${query ? `?${query}` : ''}`);
+}
+
+/** POST /api/grievances */
+export function createGrievance(payload) {
+    return authFetch('/api/grievances', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    });
+}
+
+/** GET /api/grievances/workers */
+export function getGrievanceWorkers() {
+    return authFetch('/api/grievances/workers');
+}
+
+/** PATCH /api/grievances/:id/assign */
+export function assignGrievance(id, assignedTo) {
+    return authFetch(`/api/grievances/${id}/assign`, {
+        method: 'PATCH',
+        body: JSON.stringify({ assigned_to: assignedTo }),
+    });
+}
+
+/** PATCH /api/grievances/:id/status */
+export function updateGrievanceStatus(id, payload) {
+    return authFetch(`/api/grievances/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+    });
+}
+
+/** GET /api/grievances/:id/attachments */
+export function getGrievanceAttachments(id) {
+    return authFetch(`/api/grievances/${id}/attachments`);
+}
+
+/** POST /api/grievances/:id/attachments */
+export async function uploadGrievanceAttachment(id, file) {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append('attachment', file);
+    const response = await fetch(`${API_BASE_URL}/api/grievances/${id}/attachments`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+    });
+    const data = await response.json();
+    if (!response.ok) {
+        throw Object.assign(new Error(data.message || `Request failed (${response.status})`), {
+            status: response.status,
+            data,
+        });
+    }
+    return data;
+}
+
+/** GET /api/grievances/attachments/:attachmentId/download */
+export async function downloadGrievanceAttachment(id) {
+    const token = getToken();
+    const response = await fetch(`${API_BASE_URL}/api/grievances/attachments/${id}/download`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) {
+        let data = {};
+        try { data = await response.json(); } catch { /* non-JSON error response */ }
+        throw Object.assign(new Error(data.message || `Request failed (${response.status})`), {
+            status: response.status,
+            data,
+        });
+    }
+    return response.blob();
+}
+
+/** GET /api/applications/:applicationId/documents */
+export function getApplicationDocuments(applicationId) {
+    return authFetch(`/api/applications/${applicationId}/documents`);
+}
+
+/** POST /api/applications/:applicationId/documents */
+export async function uploadApplicationDocument(applicationId, documentType, file) {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append('document_type', documentType);
+    formData.append('document', file);
+    const response = await fetch(`${API_BASE_URL}/api/applications/${applicationId}/documents`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+    });
+    const data = await response.json();
+    if (!response.ok) {
+        throw Object.assign(new Error(data.message || `Request failed (${response.status})`), {
+            status: response.status,
+            data,
+        });
+    }
+    return data;
+}
+
+/** PATCH /api/documents/:documentId/verification */
+export function updateDocumentVerification(documentId, status, rejectionReason = '') {
+    return authFetch(`/api/documents/${documentId}/verification`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status, rejection_reason: rejectionReason }),
+    });
+}
+
+/** GET /api/documents/:documentId/download — returns an authenticated file blob */
+export async function downloadDocument(documentId) {
+    const token = getToken();
+    const response = await fetch(`${API_BASE_URL}/api/documents/${documentId}/download`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) {
+        let data = {};
+        try { data = await response.json(); } catch { /* non-JSON error response */ }
+        throw Object.assign(new Error(data.message || `Request failed (${response.status})`), {
+            status: response.status,
+            data,
+        });
+    }
+    return response.blob();
+}
+
 export default API_BASE_URL;

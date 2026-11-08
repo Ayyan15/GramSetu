@@ -12,7 +12,7 @@ async function listServices(req, res) {
     try {
         const result = await pool.query(
             `SELECT id, name, name_marathi, description, category,
-                    required_docs, processing_days, fee_amount
+                    required_docs, processing_days, fee_amount, form_schema
              FROM   services
              WHERE  panchayat_id = $1 AND is_active = TRUE
              ORDER  BY category, name`,

@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react'
-import { getMyProfile, getServices } from '../services/api'
+import { getApplications, getGrievances, getMyProfile, getServices, submitApplication } from '../services/api'
+import ApplicationForm from '../components/ApplicationForm'
+import DocumentUpload from '../components/DocumentUpload'
+import GrievanceForm from '../components/GrievanceForm'
+import GrievanceDetails from '../components/GrievanceDetails'
 
 const CATEGORY_ICONS = {
   certificate: '📄',
@@ -8,28 +12,71 @@ const CATEGORY_ICONS = {
   other:       '📋',
 }
 
-export default function CitizenDashboard({ user, token, onLogout }) {
+export default function CitizenDashboard({ user, onLogout }) {
   const [profile,  setProfile]  = useState(user)
   const [services, setServices] = useState([])
+  const [applications, setApplications] = useState([])
   const [loading,  setLoading]  = useState(true)
   const [error,    setError]    = useState('')
-  const [view,     setView]     = useState('home') // 'home' | 'services'
+  const [view,     setView]     = useState('home')
+  const [selectedService, setSelectedService] = useState(null)
+  const [applicationLoading, setApplicationLoading] = useState(false)
+  const [applicationError, setApplicationError] = useState('')
+  const [applicationSuccess, setApplicationSuccess] = useState('')
+  const [grievances, setGrievances] = useState([])
+  const [grievanceForm, setGrievanceForm] = useState(false)
+  const [grievanceSuccess, setGrievanceSuccess] = useState('')
+  const [grievanceError, setGrievanceError] = useState('')
+  const [selectedGrievance, setSelectedGrievance] = useState(null)
 
   useEffect(() => {
     async function load() {
       try {
-        const [profRes, svcRes] = await Promise.all([getMyProfile(), getServices()])
+        const [profRes, svcRes, appRes, grievanceRes] = await Promise.all([getMyProfile(), getServices(), getApplications(), getGrievances()])
         setProfile(profRes.user)
         setServices(svcRes.services || [])
+        setApplications(appRes.applications || [])
+        setGrievances(grievanceRes.grievances || [])
       } catch (e) {
         if (e.status === 401) { onLogout(); return }
         setError(e.message)
       } finally {
         setLoading(false)
       }
+
     }
     load()
-  }, [])
+  }, [onLogout])
+
+  function handleGrievanceSuccess(grievance) {
+    setGrievances(previous => [grievance, ...previous])
+    setGrievanceForm(false)
+    setGrievanceSuccess('Your grievance was submitted successfully.')
+    setView('grievances')
+  }
+
+  async function handleApplicationSubmit(payload) {
+    setApplicationLoading(true)
+    setApplicationError('')
+    setApplicationSuccess('')
+    try {
+      const result = await submitApplication(payload)
+      const submittedApplication = {
+        ...result.application,
+        service_name: result.application.service?.name || selectedService.name,
+        service_name_marathi: result.application.service?.name_marathi || selectedService.name_marathi,
+      }
+      setApplications(previous => [submittedApplication, ...previous])
+      setSelectedService(null)
+      setApplicationSuccess('Your application was submitted successfully.')
+      setView('applications')
+    } catch (e) {
+      if (e.status === 401) { onLogout(); return }
+      setApplicationError(e.data?.errors || [e.message])
+    } finally {
+      setApplicationLoading(false)
+    }
+  }
 
   const greeting = () => {
     const h = new Date().getHours()
@@ -77,7 +124,7 @@ export default function CitizenDashboard({ user, token, onLogout }) {
       {/* Nav tabs */}
       <nav className="bg-white border-b border-gray-200">
         <div className="max-w-6xl mx-auto px-4 flex gap-1">
-          {[['home', '🏠 Home'], ['services', '📋 Services']].map(([id, label]) => (
+          {[['home', '🏠 Home'], ['services', '📋 Services'], ['applications', '🔍 My Applications'], ['grievances', '📢 My Grievances']].map(([id, label]) => (
             <button
               key={id}
               onClick={() => setView(id)}
@@ -104,9 +151,9 @@ export default function CitizenDashboard({ user, token, onLogout }) {
             {/* Summary cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               {[
-                { label: 'Applications',  value: '—', icon: '📝', color: 'blue'  },
-                { label: 'Approved',      value: '—', icon: '✅', color: 'green' },
-                { label: 'Grievances',    value: '—', icon: '📢', color: 'amber' },
+              { label: 'Applications',  value: applications.length, icon: '📝', color: 'blue'  },
+              { label: 'Approved',      value: applications.filter(a => a.status === 'APPROVED').length, icon: '✅', color: 'green' },
+                { label: 'Grievances',    value: grievances.length, icon: '📢', color: 'amber' },
                 { label: 'Pending Docs',  value: '—', icon: '📌', color: 'red'   },
               ].map(c => (
                 <div key={c.label} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
@@ -123,8 +170,8 @@ export default function CitizenDashboard({ user, token, onLogout }) {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
                   { icon: '📄', label: 'Apply for Certificate', action: () => setView('services') },
-                  { icon: '📢', label: 'Submit Grievance',      action: () => alert('Grievance module — coming soon') },
-                  { icon: '🔍', label: 'Track Application',     action: () => alert('Application tracking — coming soon') },
+                  { icon: '📢', label: 'Submit Grievance',      action: () => { setGrievanceForm(true); setGrievanceError(''); setGrievanceSuccess(''); setView('grievances') } },
+                  { icon: '🔍', label: 'Track Application',     action: () => setView('applications') },
                   { icon: '👤', label: 'My Profile',            action: () => alert('Profile management — coming soon') },
                 ].map(a => (
                   <button
@@ -161,9 +208,95 @@ export default function CitizenDashboard({ user, token, onLogout }) {
           </>
         )}
 
+        {view === 'applications' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <h2 className="text-lg font-bold text-[#0b2945] mb-4">My Applications</h2>
+            {applicationSuccess && <div className="mb-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{applicationSuccess}</div>}
+            {applications.length === 0 ? (
+              <div className="py-8 text-center text-sm text-[#56677b]">You have not submitted any applications yet.</div>
+            ) : (
+              <div className="space-y-3">
+                {applications.map(application => (
+                  <div key={application.id} className="border border-gray-100 rounded-xl p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-semibold text-[#0b2945]">{application.service_name || 'Service application'}</div>
+                        <div className="text-xs text-[#56677b] mt-1">Application ID: {application.id}</div>
+                        <div className="text-xs text-[#56677b] mt-1">Submitted: {new Date(application.submitted_at).toLocaleDateString('en-IN')}</div>
+                      </div>
+                      <span className="text-xs px-2 py-1 rounded-full font-semibold bg-blue-100 text-blue-800">{application.status}</span>
+                    </div>
+                    {application.remarks && <div className="text-sm text-[#56677b] mt-2">{application.remarks}</div>}
+                    <DocumentUpload
+                      application={application}
+                      requiredDocs={application.required_docs || services.find(service => service.name === application.service_name)?.required_docs || []}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {view === 'grievances' && (
+          <div>
+            {grievanceForm ? (
+              <GrievanceForm
+                onSuccess={handleGrievanceSuccess}
+                onCancel={() => setGrievanceForm(false)}
+                onAuthError={onLogout}
+              />
+            ) : (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <div>
+                    <h2 className="text-lg font-bold text-[#0b2945]">My Grievances</h2>
+                    <p className="text-xs text-[#56677b] mt-1">Track issues submitted to Kini Gram Panchayat.</p>
+                  </div>
+                  <button type="button" onClick={() => { setGrievanceForm(true); setGrievanceError(''); setGrievanceSuccess('') }} className="rounded-lg bg-[#087451] px-3 py-2 text-xs font-semibold text-white hover:bg-[#065d41]">Submit grievance</button>
+                </div>
+                {grievanceSuccess && <div className="mb-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{grievanceSuccess}</div>}
+                {grievanceError && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{grievanceError}</div>}
+                {grievances.length === 0 ? (
+                  <div className="py-8 text-center text-sm text-[#56677b]">You have not submitted any grievances yet.</div>
+                ) : (
+                  <div className="space-y-3">
+                    {grievances.map(grievance => (
+                      <div key={grievance.id} className="rounded-xl border border-gray-100 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="font-semibold text-[#0b2945]">{grievance.title}</div>
+                            <div className="mt-1 text-xs text-[#56677b]">{grievance.category} · {new Date(grievance.submitted_at).toLocaleDateString('en-IN')} · Priority: {grievance.priority || 'NORMAL'}</div>
+                            {grievance.location_text && <div className="mt-1 text-xs text-[#56677b]">📍 {grievance.location_text}</div>}
+                          </div>
+                          <span className={`rounded-full px-2 py-1 text-xs font-semibold ${grievance.status === 'REJECTED' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`}>{grievance.status}</span>
+                        </div>
+                        <button type="button" onClick={() => setSelectedGrievance(selectedGrievance?.id === grievance.id ? null : grievance)} className="mt-3 text-xs font-semibold text-[#087451] underline">
+                          {selectedGrievance?.id === grievance.id ? 'Hide details' : 'View details'}
+                        </button>
+                        {selectedGrievance?.id === grievance.id && <GrievanceDetails grievance={grievance} onClose={() => setSelectedGrievance(null)} canUpload={grievance.status !== 'CLOSED' && grievance.status !== 'REJECTED'} onAuthError={onLogout} />}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* SERVICES VIEW */}
         {view === 'services' && (
           <div>
+            {selectedService ? (
+              <ApplicationForm
+                service={selectedService}
+                onSubmit={handleApplicationSubmit}
+                onCancel={() => { setSelectedService(null); setApplicationError('') }}
+                submitting={applicationLoading}
+                serverErrors={applicationError}
+              />
+            ) : (
+            <>
             <h2 className="text-lg font-bold text-[#0b2945] mb-4">
               Available Services — किनी ग्रामपंचायत
             </h2>
@@ -198,7 +331,7 @@ export default function CitizenDashboard({ user, token, onLogout }) {
                       </div>
                     )}
                     <button
-                      onClick={() => alert(`Application form for "${svc.name}" — coming soon in next milestone`)}
+                      onClick={() => { setSelectedService(svc); setApplicationError(''); setApplicationSuccess('') }}
                       className="w-full mt-2 py-2 px-4 bg-[#087451] hover:bg-[#065d41] text-white text-sm font-semibold rounded-lg transition-colors"
                     >
                       Apply Now
@@ -206,6 +339,8 @@ export default function CitizenDashboard({ user, token, onLogout }) {
                   </div>
                 ))}
               </div>
+            )}
+            </>
             )}
           </div>
         )}
